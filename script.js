@@ -1,16 +1,16 @@
 let localConnection;
-let sendChannel;
+let localStream;
+let remoteStream;
 
 const localDescriptionTextarea = document.getElementById('localDescription');
 const remoteDescriptionTextarea = document.getElementById('remoteDescription');
 const generateOfferButton = document.getElementById('copyLocalDescription');
 const connectButton = document.getElementById('connect');
-const sendButton = document.getElementById('sendButton');
-const messageInput = document.getElementById('messageInput');
-const messagesList = document.getElementById('messages');
+
+const localVideo = document.getElementById('localVideo');
+const remoteVideo = document.getElementById('remoteVideo');
 
 let localIceCandidates = [];
-let remoteIceCandidates = [];
 
 // Generate Offer and Local Description
 generateOfferButton.addEventListener('click', async () => {
@@ -32,7 +32,7 @@ connectButton.addEventListener('click', async () => {
         try {
             await localConnection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-            console.error('Error adding received ice candidate', e);
+            console.error('Error adding received ICE candidate', e);
         }
     }
 
@@ -50,37 +50,28 @@ connectButton.addEventListener('click', async () => {
     });
 });
 
-// Send Message
-sendButton.addEventListener('click', () => {
-    const message = messageInput.value;
-    if (message && sendChannel && sendChannel.readyState === 'open') {
-        sendChannel.send(message);
-        appendMessage('You: ' + message);
-        messageInput.value = '';
-    } else {
-        alert('Connection is not open. Cannot send message.');
-    }
-});
-
-// Append Message to Chat
-function appendMessage(message) {
-    const li = document.createElement('li');
-    li.textContent = message;
-    messagesList.appendChild(li);
-}
-
 // Create Connection and Generate Offer
 async function createConnection(createOffer = true) {
     localIceCandidates = [];
-    // Configuration object for ICE servers (STUN/TURN servers)
-    const configuration = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' } // Public STUN server
-        ]
-    };
 
-    // Create a new RTCPeerConnection
-    localConnection = new RTCPeerConnection(configuration);
+    // Get the local media stream
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+    } catch (err) {
+        console.error('Error accessing media devices.', err);
+        alert('Could not access your camera and microphone. Please check permissions.');
+        return;
+    }
+
+    localConnection = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Using a public STUN server
+    });
+
+    // Add the local stream's tracks to the connection
+    localStream.getTracks().forEach((track) => {
+        localConnection.addTrack(track, localStream);
+    });
 
     // Handle ICE Candidates
     localConnection.onicecandidate = ({ candidate }) => {
@@ -91,22 +82,17 @@ async function createConnection(createOffer = true) {
         }
     };
 
-    // Handle Incoming Data Channel
-    localConnection.ondatachannel = (event) => {
-        const receiveChannel = event.channel;
-        receiveChannel.onmessage = (e) => {
-            appendMessage('Remote: ' + e.data);
-        };
+    // Handle Remote Stream
+    remoteStream = new MediaStream();
+    remoteVideo.srcObject = remoteStream;
+
+    localConnection.ontrack = (event) => {
+        event.streams[0].getTracks().forEach((track) => {
+            remoteStream.addTrack(track);
+        });
     };
 
     if (createOffer) {
-        // Create Data Channel
-        sendChannel = localConnection.createDataChannel('messagingChannel');
-        sendChannel.onopen = () => console.log('Data channel is open');
-        sendChannel.onmessage = (e) => {
-            appendMessage('Remote: ' + e.data);
-        };
-
         // Create Offer
         const offer = await localConnection.createOffer();
         await localConnection.setLocalDescription(offer);

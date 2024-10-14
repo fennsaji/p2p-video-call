@@ -2,11 +2,23 @@
 <html>
 
 <head>
-    <title>P2P Communication via WebRTC</title>
+    <title>WebRTC Video Call</title>
+    <style>
+        video {
+            width: 300px;
+            height: 225px;
+            background-color: black;
+            margin: 5px;
+        }
+
+        #videos {
+            display: flex;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Peer-to-Peer Communication</h1>
+    <h1>Peer-to-Peer Video Call</h1>
     <div>
         <h3>Your Connection Details:</h3>
         <textarea id="localDescription" cols="60" rows="10" readonly></textarea>
@@ -21,13 +33,17 @@
         <button id="connect">Connect</button>
     </div>
     <hr>
-    <div>
-        <h3>Messaging:</h3>
-        <input type="text" id="messageInput" placeholder="Type message here">
-        <button id="sendButton">Send</button>
-        <ul id="messages"></ul>
+    <div id="videos">
+        <div>
+            <h3>Local Video:</h3>
+            <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+        <div>
+            <h3>Remote Video:</h3>
+            <video id="remoteVideo" autoplay playsinline></video>
+        </div>
     </div>
-    <script src="index.js"></script>
+    <script src="script.js"></script>
 </body>
 
 </html>
