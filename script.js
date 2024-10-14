@@ -10,7 +10,13 @@ const connectButton = document.getElementById('connect');
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
 
+const muteButton = document.getElementById('muteButton');
+const videoButton = document.getElementById('videoButton');
+
 let localIceCandidates = [];
+
+let isAudioMuted = false;
+let isVideoMuted = false;
 
 // Generate Offer and Local Description
 generateOfferButton.addEventListener('click', async () => {
@@ -32,7 +38,7 @@ connectButton.addEventListener('click', async () => {
         try {
             await localConnection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-            console.error('Error adding received ICE candidate', e);
+            console.error('Error adding received ice candidate', e);
         }
     }
 
@@ -48,6 +54,26 @@ connectButton.addEventListener('click', async () => {
         sessionDescription: localConnection.localDescription,
         iceCandidates: localIceCandidates
     });
+});
+
+// Handle Mute/Unmute Microphone
+muteButton.addEventListener('click', () => {
+    if (!localStream) return;
+    isAudioMuted = !isAudioMuted;
+    localStream.getAudioTracks().forEach(track => {
+        track.enabled = !isAudioMuted;
+    });
+    muteButton.textContent = isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone';
+});
+
+// Handle Turn On/Off Video
+videoButton.addEventListener('click', () => {
+    if (!localStream) return;
+    isVideoMuted = !isVideoMuted;
+    localStream.getVideoTracks().forEach(track => {
+        track.enabled = !isVideoMuted;
+    });
+    videoButton.textContent = isVideoMuted ? 'Turn On Video' : 'Turn Off Video';
 });
 
 // Create Connection and Generate Offer
