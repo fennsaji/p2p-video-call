@@ -22,6 +22,34 @@
         #controls button {
             margin-right: 5px;
         }
+
+        /* Added styles for the chat interface */
+        #chat {
+            margin-top: 20px;
+        }
+
+        #messages {
+            list-style: none;
+            padding: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 5px;
+        }
+
+        #messages li {
+            margin-bottom: 5px;
+        }
+
+        #messageInput {
+            width: 80%;
+            padding: 5px;
+            margin-right: 5px;
+        }
+
+        #sendButton {
+            padding: 5px 10px;
+        }
     </style>
 </head>
 
@@ -54,6 +82,14 @@
             <h3>Remote Video:</h3>
             <video id="remoteVideo" autoplay playsinline></video>
         </div>
+    </div>
+    <hr>
+    <!-- Added chat interface -->
+    <div id="chat">
+        <h3>Chat:</h3>
+        <ul id="messages"></ul>
+        <input type="text" id="messageInput" placeholder="Type your message here..." />
+        <button id="sendButton">Send</button>
     </div>
     <script src="script.js"></script>
 </body>

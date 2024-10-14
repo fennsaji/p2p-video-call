@@ -1,6 +1,7 @@
 let localConnection;
 let localStream;
 let remoteStream;
+let dataChannel;
 
 const localDescriptionTextarea = document.getElementById('localDescription');
 const remoteDescriptionTextarea = document.getElementById('remoteDescription');
@@ -13,10 +14,17 @@ const remoteVideo = document.getElementById('remoteVideo');
 const muteButton = document.getElementById('muteButton');
 const videoButton = document.getElementById('videoButton');
 
+const messageInput = document.getElementById('messageInput');
+const sendButton = document.getElementById('sendButton');
+const messagesList = document.getElementById('messages');
+
 let localIceCandidates = [];
 
 let isAudioMuted = false;
 let isVideoMuted = false;
+
+// Initially disable the send button until the data channel is open
+sendButton.disabled = true;
 
 // Generate Offer and Local Description
 generateOfferButton.addEventListener('click', async () => {
@@ -45,15 +53,15 @@ connectButton.addEventListener('click', async () => {
     if (remoteData.sessionDescription.type === 'offer') {
         const answer = await localConnection.createAnswer();
         await localConnection.setLocalDescription(answer);
+
+        // Wait for ICE gathering to complete
+        await waitForIceGathering();
+
+        localDescriptionTextarea.value = JSON.stringify({
+            sessionDescription: localConnection.localDescription,
+            iceCandidates: localIceCandidates
+        });
     }
-
-    // Wait for ICE gathering to complete
-    await waitForIceGathering();
-
-    localDescriptionTextarea.value = JSON.stringify({
-        sessionDescription: localConnection.localDescription,
-        iceCandidates: localIceCandidates
-    });
 });
 
 // Handle Mute/Unmute Microphone
@@ -76,9 +84,46 @@ videoButton.addEventListener('click', () => {
     videoButton.textContent = isVideoMuted ? 'Turn On Video' : 'Turn Off Video';
 });
 
+// Send Message
+sendButton.addEventListener('click', () => {
+    const message = messageInput.value;
+    if (message && dataChannel && dataChannel.readyState === 'open') {
+        dataChannel.send(message);
+        appendMessage('You: ' + message);
+        messageInput.value = '';
+    } else {
+        alert('Connection is not open or data channel is not available. Cannot send message.');
+    }
+});
+
+// Append Message to Chat
+function appendMessage(message) {
+    const li = document.createElement('li');
+    li.textContent = message;
+    messagesList.appendChild(li);
+}
+
 // Create Connection and Generate Offer
 async function createConnection(createOffer = true) {
     localIceCandidates = [];
+
+    // Create a new RTCPeerConnection
+    localConnection = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Using a public STUN server
+    });
+
+    // Set up data channel
+    if (createOffer) {
+        // This peer is the caller
+        dataChannel = localConnection.createDataChannel('chat');
+        setupDataChannel();
+    } else {
+        // This peer is the callee
+        localConnection.ondatachannel = (event) => {
+            dataChannel = event.channel;
+            setupDataChannel();
+        };
+    }
 
     // Get the local media stream
     try {
@@ -89,10 +134,6 @@ async function createConnection(createOffer = true) {
         alert('Could not access your camera and microphone. Please check permissions.');
         return;
     }
-
-    localConnection = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Using a public STUN server
-    });
 
     // Add the local stream's tracks to the connection
     localStream.getTracks().forEach((track) => {
@@ -131,6 +172,26 @@ async function createConnection(createOffer = true) {
             iceCandidates: localIceCandidates
         });
     }
+}
+
+// Set up the data channel event handlers
+function setupDataChannel() {
+    dataChannel.onopen = () => {
+        console.log('Data channel is open');
+        // Enable the send button when the data channel is open
+        sendButton.disabled = false;
+    };
+    dataChannel.onmessage = (event) => {
+        console.log('Received message:', event.data);
+        appendMessage('Remote: ' + event.data);
+    };
+    dataChannel.onerror = (error) => {
+        console.error('Data channel error:', error);
+    };
+    dataChannel.onclose = () => {
+        console.log('Data channel is closed');
+        sendButton.disabled = true;
+    };
 }
 
 // Wait for ICE Gathering to Complete
