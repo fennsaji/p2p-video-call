@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>P2P Communication via WebRTC</title>
+</head>
+
+<body>
+    <h1>Peer-to-Peer Communication</h1>
+    <div>
+        <h3>Your Connection Details:</h3>
+        <textarea id="localDescription" cols="60" rows="10" readonly></textarea>
+        <br>
+        <button id="copyLocalDescription">Generate Connection Offer</button>
+    </div>
+    <hr>
+    <div>
+        <h3>Remote Connection Details:</h3>
+        <textarea id="remoteDescription" cols="60" rows="10" placeholder="Paste remote description here"></textarea>
+        <br>
+        <button id="connect">Connect</button>
+    </div>
+    <hr>
+    <div>
+        <h3>Messaging:</h3>
+        <input type="text" id="messageInput" placeholder="Type message here">
+        <button id="sendButton">Send</button>
+        <ul id="messages"></ul>
+    </div>
+    <script src="index.js"></script>
+</body>
+
+</html>
