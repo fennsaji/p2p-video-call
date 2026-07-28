@@ -27,9 +27,12 @@
     <div class="app">
         <header class="app-header">
             <h1>P2P Meet</h1>
-            <div class="status-pill" id="statusPill" data-state="new" role="status" aria-live="polite">
-                <span class="status-dot"></span>
-                <span id="statusText">Disconnected</span>
+            <div class="header-right">
+                <a class="header-link" href="legal.html" target="_blank" rel="noopener">Privacy &amp; terms</a>
+                <div class="status-pill" id="statusPill" data-state="new" role="status" aria-live="polite">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Disconnected</span>
+                </div>
             </div>
         </header>
 
@@ -190,6 +193,12 @@
                     <button class="btn btn-primary" id="joinButton" disabled>Join call</button>
                 </div>
             </div>
+
+            <p class="privacy-note">
+                Calls connect straight between the two browsers, so whoever you call will see your IP address.
+                Video, audio, and chat are encrypted in transit and never reach our servers.
+                <a href="legal.html" target="_blank" rel="noopener">What's shared, and acceptable use</a>
+            </p>
 
             <details class="advanced" id="advancedDetails">
                 <summary>Advanced settings</summary>
