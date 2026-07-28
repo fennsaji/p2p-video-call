@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Privacy &amp; terms — P2P Meet</title>
+    <meta name="description" content="What P2P Meet shares, what it stores, and how you may use it.">
+    <meta name="theme-color" content="#0f1117">
+    <link rel="canonical" href="https://p2p.fennsaji.com/legal">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%236366f1'/><path d='M16 9.5l3.2-1.6a.7.7 0 011 .6v7a.7.7 0 01-1 .6L16 14.5M6.5 17h7a1.8 1.8 0 001.8-1.8V8.8A1.8 1.8 0 0013.5 7h-7a1.8 1.8 0 00-1.8 1.8v6.4A1.8 1.8 0 006.5 17z' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round'/></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="doc">
+    <main class="doc-page">
+        <p class="doc-back"><a href="/">← Back to P2P Meet</a></p>
+
+        <h1>Privacy &amp; terms</h1>
+        <p class="doc-updated">Last updated 28 July 2026</p>
+
+        <p>
+            P2P Meet places a video call directly between two web browsers. There is no account, no sign-up, and
+            no database. This page describes exactly what that means for your privacy, and the terms you agree to
+            by using it.
+        </p>
+
+        <h2>What the other person sees</h2>
+        <p>
+            <strong>The person you call will see your IP address.</strong> This is not a design choice that could
+            be removed — it is how a direct peer-to-peer connection works. Each browser has to know where to send
+            audio and video, so the two exchange their network addresses in order to connect.
+        </p>
+        <p>
+            An IP address can reveal your approximate location and your internet provider. If you are calling
+            someone you do not trust with that information, do not use a peer-to-peer service, this one included.
+        </p>
+
+        <h2>What is encrypted</h2>
+        <p>
+            WebRTC requires encryption, so audio, video, and chat messages are encrypted in transit between the
+            two browsers using DTLS-SRTP. Call content does not pass through this site's servers and is not
+            visible to us. Nothing said or shown in a call is recorded by the site.
+        </p>
+
+        <h2>What this site stores</h2>
+        <p>
+            Nothing on a server. There is no account system, no message history, and no call log. The only data
+            kept anywhere is in your own browser's local storage: any custom ICE or TURN server settings you
+            enter under Advanced settings. That stays on your device and is never transmitted to us. Clearing
+            your browser storage removes it.
+        </p>
+
+        <h2>Third parties involved in a call</h2>
+        <p>
+            Encrypted call content stays between the two browsers, but connecting the call necessarily involves
+            other services, each of which sees some connection metadata:
+        </p>
+        <ul>
+            <li>
+                <strong>PeerJS public broker</strong> — relays the connection details that let two browsers find
+                each other. It sees both peers' IP addresses, the random room id, and when the connection was
+                made. It does not see call content.
+            </li>
+            <li>
+                <strong>Google STUN server</strong> (<code>stun.l.google.com</code>) — used to discover your
+                public network address. It sees your IP address.
+            </li>
+            <li>
+                <strong>Vercel</strong> — hosts this page, and logs page requests as any web host does.
+            </li>
+            <li>
+                <strong>Your TURN provider</strong>, if you configure one under Advanced settings — a TURN server
+                relays the call media, so its operator handles the entire encrypted stream. Only use a provider
+                you trust.
+            </li>
+            <li>
+                <strong>Your internet provider</strong> — sees that a connection took place, as with any internet
+                traffic.
+            </li>
+        </ul>
+        <p>
+            These services are operated by other companies under their own privacy policies. Their handling of
+            your data is outside this site's control.
+        </p>
+
+        <h2>Acceptable use</h2>
+        <p>By using P2P Meet you agree not to use it:</p>
+        <ul>
+            <li>for anything unlawful, or to plan, assist, or carry out unlawful acts;</li>
+            <li>to harass, threaten, abuse, stalk, or impersonate anyone;</li>
+            <li>to share material involving the sexual exploitation or abuse of children, or any other content
+                whose distribution is illegal;</li>
+            <li>to record or transmit a call without the consent of everyone involved, where the law where you
+                or they are located requires that consent;</li>
+            <li>to attack, overload, probe, or interfere with this site or the third-party services it relies on;
+                or</li>
+            <li>to resell or present the service as your own.</li>
+        </ul>
+        <p>
+            Because calls are peer-to-peer and encrypted, we cannot see, moderate, or intervene in what people
+            say or show to each other. Responsibility for the content of a call rests entirely with its
+            participants.
+        </p>
+
+        <h2>No warranty</h2>
+        <p>
+            P2P Meet is a personal project provided free and as-is, with no guarantee of availability, quality,
+            or fitness for any purpose. It depends on free third-party infrastructure that can be unavailable at
+            any time, and it may change or shut down without notice. Calls will fail entirely on some networks —
+            restrictive NATs need a TURN relay, which this site does not provide by default. Do not rely on it
+            for anything important, urgent, or safety-critical.
+        </p>
+
+        <h2>Reporting a problem</h2>
+        <p>
+            Report abuse, security issues, or privacy concerns by opening an issue at
+            <a href="https://github.com/fennsaji/p2p-video-call/issues" target="_blank" rel="noopener">
+                github.com/fennsaji/p2p-video-call</a>.
+        </p>
+    </main>
+</body>
+
+</html>
