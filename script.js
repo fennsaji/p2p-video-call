@@ -1,22 +1,29 @@
 const DEFAULT_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 const ICE_SERVERS_STORAGE_KEY = 'webrtc-demo-ice-servers';
 
-let localConnection;
-let localStream;
-let remoteStream;
-let dataChannel;
-let localIceCandidates = [];
-let role = null; // 'caller' | 'callee'
+// Room ids live in a shared namespace on the public PeerJS broker, so they are
+// prefixed and long enough that collisions with other apps are not a concern.
+const ROOM_PREFIX = 'p2pmeet-';
+const ROOM_CODE_LENGTH = 12;
+const ROOM_CODE_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+const ROOM_CODE_PATTERN = /^[a-z0-9]{6,32}$/;
+
+let peer = null;
+let mediaCall = null;
+let chatConnection = null;
+let localStream = null;
+let roomCode = null;
+let role = null; // 'host' | 'guest'
 let isAudioMuted = false;
 let isVideoMuted = false;
 let unreadCount = 0;
 let modalMinimized = false;
+let idRetryUsed = false;
 
 // --- DOM refs ---
 const statusPill = document.getElementById('statusPill');
 const statusText = document.getElementById('statusText');
 
-const videoStage = document.getElementById('videoStage');
 const stagePlaceholder = document.getElementById('stagePlaceholder');
 const failurePanel = document.getElementById('failurePanel');
 const retryButton = document.getElementById('retryButton');
@@ -43,28 +50,23 @@ const setupModal = document.getElementById('setupModal');
 const minimizeModalButton = document.getElementById('minimizeModalButton');
 const stepIndicator = document.getElementById('stepIndicator');
 const stepRole = document.getElementById('stepRole');
-const stepStart = document.getElementById('stepStart');
+const stepHost = document.getElementById('stepHost');
 const stepJoin = document.getElementById('stepJoin');
-const stepAnswer = document.getElementById('stepAnswer');
 const startCallCard = document.getElementById('startCallCard');
 const joinCallCard = document.getElementById('joinCallCard');
-const backFromStartButton = document.getElementById('backFromStartButton');
+const backFromHostButton = document.getElementById('backFromHostButton');
 const backFromJoinButton = document.getElementById('backFromJoinButton');
 
-const localDescriptionTextarea = document.getElementById('localDescription');
-const copyOfferButton = document.getElementById('copyOfferButton');
-const copyOfferStatus = document.getElementById('copyOfferStatus');
-const answerInput = document.getElementById('answerInput');
-const answerError = document.getElementById('answerError');
-const connectAsCallerButton = document.getElementById('connectAsCallerButton');
+const inviteLinkInput = document.getElementById('inviteLink');
+const copyInviteButton = document.getElementById('copyInviteButton');
+const copyInviteStatus = document.getElementById('copyInviteStatus');
+const hostWaiting = document.getElementById('hostWaiting');
+const hostPreparing = document.getElementById('hostPreparing');
 
-const offerInput = document.getElementById('offerInput');
-const offerError = document.getElementById('offerError');
-const connectAsCalleeButton = document.getElementById('connectAsCalleeButton');
-
-const answerOutput = document.getElementById('answerOutput');
-const copyAnswerButton = document.getElementById('copyAnswerButton');
-const copyAnswerStatus = document.getElementById('copyAnswerStatus');
+const joinHint = document.getElementById('joinHint');
+const roomCodeInput = document.getElementById('roomCodeInput');
+const roomCodeError = document.getElementById('roomCodeError');
+const joinButton = document.getElementById('joinButton');
 
 const advancedDetails = document.getElementById('advancedDetails');
 const iceServersInput = document.getElementById('iceServersInput');
@@ -119,17 +121,44 @@ saveIceServersButton.addEventListener('click', () => {
     }
 });
 
+// --- Room codes and invite links ---
+function createRoomCode() {
+    const values = new Uint32Array(ROOM_CODE_LENGTH);
+    crypto.getRandomValues(values);
+    let code = '';
+    for (const value of values) {
+        code += ROOM_CODE_ALPHABET[value % ROOM_CODE_ALPHABET.length];
+    }
+    return code;
+}
+
+function buildInviteLink(code) {
+    return `${location.origin}${location.pathname}#${code}`;
+}
+
+// Accepts a full invite link, a bare "#code" fragment, or the code on its own.
+function normalizeRoomCode(raw) {
+    let value = String(raw || '').trim();
+    const hashIndex = value.lastIndexOf('#');
+    if (hashIndex !== -1) value = value.slice(hashIndex + 1);
+    value = value.trim().toLowerCase();
+    if (value.startsWith(ROOM_PREFIX)) value = value.slice(ROOM_PREFIX.length);
+    return ROOM_CODE_PATTERN.test(value) ? value : null;
+}
+
+function clearUrlFragment() {
+    if (location.hash) {
+        history.replaceState(null, '', location.pathname + location.search);
+    }
+}
+
 // --- Modal step management ---
 function showStep(step) {
     stepRole.hidden = true;
-    stepStart.hidden = true;
+    stepHost.hidden = true;
     stepJoin.hidden = true;
-    stepAnswer.hidden = true;
     step.hidden = false;
-
-    if (step === stepRole) stepIndicator.textContent = 'Step 1 of 3';
-    else if (step === stepStart || step === stepJoin) stepIndicator.textContent = 'Step 2 of 3';
-    else if (step === stepAnswer) stepIndicator.textContent = 'Step 3 of 3';
+    stepIndicator.textContent = step === stepRole ? 'Step 1 of 2' : 'Step 2 of 2';
 }
 
 function openModal() {
@@ -143,16 +172,13 @@ function closeModal() {
 
 function resetModal() {
     role = null;
-    localDescriptionTextarea.value = '';
-    answerInput.value = '';
-    offerInput.value = '';
-    answerOutput.value = '';
-    answerError.hidden = true;
-    offerError.hidden = true;
-    connectAsCallerButton.disabled = true;
-    connectAsCalleeButton.disabled = true;
-    copyOfferStatus.textContent = '';
-    copyAnswerStatus.textContent = '';
+    inviteLinkInput.value = '';
+    roomCodeInput.value = '';
+    roomCodeError.hidden = true;
+    joinButton.disabled = true;
+    copyInviteStatus.textContent = '';
+    hostWaiting.hidden = true;
+    hostPreparing.hidden = false;
     showStep(stepRole);
     openModal();
 }
@@ -162,157 +188,31 @@ minimizeModalButton.addEventListener('click', () => {
     modalMinimized = true;
 });
 
-startCallCard.addEventListener('click', async () => {
-    role = 'caller';
-    showStep(stepStart);
-    startCallCard.disabled = true;
-    joinCallCard.disabled = true;
-    try {
-        await createConnection(true);
-    } catch (e) {
-        console.error(e);
-        showToast(e.message === 'No connection candidates were gathered'
-            ? "Couldn't gather connection candidates — check your network and retry"
-            : 'Could not start the call', 'error');
-        teardownConnection();
-        resetModal();
-    } finally {
-        startCallCard.disabled = false;
-        joinCallCard.disabled = false;
-    }
+startCallCard.addEventListener('click', () => {
+    role = 'host';
+    showStep(stepHost);
+    startHosting();
 });
 
 joinCallCard.addEventListener('click', () => {
-    role = 'callee';
+    role = 'guest';
+    joinHint.textContent = 'Paste the invite link you were sent.';
     showStep(stepJoin);
+    roomCodeInput.focus();
 });
 
-backFromStartButton.addEventListener('click', () => {
+backFromHostButton.addEventListener('click', () => {
     teardownConnection();
     resetModal();
 });
 
 backFromJoinButton.addEventListener('click', () => {
+    teardownConnection();
+    clearUrlFragment();
     resetModal();
 });
 
-// --- Structural + semantic validation ---
-function parseSignalingCode(raw) {
-    let data;
-    try {
-        data = JSON.parse(raw);
-    } catch (e) {
-        return { error: "This doesn't look like a valid code — paste the full code you received." };
-    }
-    if (!data || typeof data !== 'object' ||
-        !data.sessionDescription || typeof data.sessionDescription !== 'object' ||
-        typeof data.sessionDescription.sdp !== 'string' || !data.sessionDescription.sdp ||
-        typeof data.sessionDescription.type !== 'string' ||
-        !Array.isArray(data.iceCandidates)) {
-        return { error: "This doesn't look like a valid code — paste the full code you received." };
-    }
-    return { data };
-}
-
-offerInput.addEventListener('input', () => {
-    offerError.hidden = true;
-    connectAsCalleeButton.disabled = !offerInput.value.trim();
-});
-
-answerInput.addEventListener('input', () => {
-    answerError.hidden = true;
-    connectAsCallerButton.disabled = !answerInput.value.trim();
-});
-
-connectAsCalleeButton.addEventListener('click', async () => {
-    const { data, error } = parseSignalingCode(offerInput.value.trim());
-    if (error) {
-        offerError.textContent = error;
-        offerError.hidden = false;
-        return;
-    }
-    if (data.sessionDescription.type !== 'offer') {
-        offerError.textContent = 'This is an answer code, but you chose Join — you need the caller\'s offer code.';
-        offerError.hidden = false;
-        return;
-    }
-
-    connectAsCalleeButton.disabled = true;
-    connectAsCalleeButton.innerHTML = '<span class="btn-spinner"></span>Connecting…';
-    try {
-        await createConnection(false);
-        await localConnection.setRemoteDescription(new RTCSessionDescription(data.sessionDescription));
-        await addRemoteIceCandidates(data.iceCandidates);
-
-        const answer = await localConnection.createAnswer();
-        await localConnection.setLocalDescription(answer);
-        await waitForIceGathering();
-
-        answerOutput.value = JSON.stringify({
-            sessionDescription: localConnection.localDescription,
-            iceCandidates: localIceCandidates
-        });
-        showStep(stepAnswer);
-    } catch (e) {
-        console.error(e);
-        if (e.message === 'No connection candidates were gathered') {
-            showToast("Couldn't gather connection candidates — check your network and retry", 'error');
-        } else {
-            offerError.textContent = 'Could not connect with that offer code. ' + (e.message || '');
-            offerError.hidden = false;
-        }
-        teardownConnection();
-    } finally {
-        connectAsCalleeButton.disabled = false;
-        connectAsCalleeButton.textContent = 'Connect';
-    }
-});
-
-connectAsCallerButton.addEventListener('click', async () => {
-    const { data, error } = parseSignalingCode(answerInput.value.trim());
-    if (error) {
-        answerError.textContent = error;
-        answerError.hidden = false;
-        return;
-    }
-    if (data.sessionDescription.type !== 'answer') {
-        answerError.textContent = 'This is an offer code — paste the answer the other person sent back.';
-        answerError.hidden = false;
-        return;
-    }
-    if (localConnection && localConnection.localDescription &&
-        data.sessionDescription.sdp === localConnection.localDescription.sdp) {
-        answerError.textContent = 'This is your own code — paste the one you received.';
-        answerError.hidden = false;
-        return;
-    }
-
-    connectAsCallerButton.disabled = true;
-    connectAsCallerButton.innerHTML = '<span class="btn-spinner"></span>Connecting…';
-    try {
-        await localConnection.setRemoteDescription(new RTCSessionDescription(data.sessionDescription));
-        await addRemoteIceCandidates(data.iceCandidates);
-    } catch (e) {
-        console.error(e);
-        answerError.textContent = 'Could not connect with that answer code. ' + (e.message || '');
-        answerError.hidden = false;
-        teardownConnection();
-        connectAsCallerButton.disabled = false;
-        connectAsCallerButton.textContent = 'Connect';
-    }
-});
-
-async function addRemoteIceCandidates(candidates) {
-    for (const candidate of candidates) {
-        try {
-            await localConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-            console.error('Error adding received ice candidate', e);
-        }
-    }
-}
-
-// --- Copy buttons ---
+// --- Copy ---
 async function copyToClipboard(text, statusEl) {
     try {
         await navigator.clipboard.writeText(text);
@@ -323,8 +223,9 @@ async function copyToClipboard(text, statusEl) {
     }
 }
 
-copyOfferButton.addEventListener('click', () => copyToClipboard(localDescriptionTextarea.value, copyOfferStatus));
-copyAnswerButton.addEventListener('click', () => copyToClipboard(answerOutput.value, copyAnswerStatus));
+copyInviteButton.addEventListener('click', () => copyToClipboard(inviteLinkInput.value, copyInviteStatus));
+
+inviteLinkInput.addEventListener('focus', () => inviteLinkInput.select());
 
 // --- Status pill ---
 function setStatus(state, label) {
@@ -349,6 +250,7 @@ retryButton.addEventListener('click', () => {
 
 openAdvancedFromFailure.addEventListener('click', () => {
     hideFailurePanel();
+    teardownConnection();
     resetModal();
     advancedDetails.open = true;
 });
@@ -393,7 +295,7 @@ function formatTime(date) {
 }
 
 function appendMessage(text, own) {
-    chatEmpty.remove();
+    if (chatEmpty.isConnected) chatEmpty.remove();
     const li = document.createElement('li');
     li.className = `bubble ${own ? 'own' : 'remote'}`;
     const textSpan = document.createElement('span');
@@ -420,11 +322,11 @@ function appendMessage(text, own) {
 function sendMessage() {
     const message = messageInput.value;
     if (!message) return;
-    if (!dataChannel || dataChannel.readyState !== 'open') {
+    if (!chatConnection || !chatConnection.open) {
         chatDisconnectBanner.hidden = false;
         return;
     }
-    dataChannel.send(message);
+    chatConnection.send(message);
     appendMessage(message, true);
     messageInput.value = '';
 }
@@ -434,9 +336,17 @@ messageInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-// --- Hang up ---
+function setChatEnabled(enabled) {
+    sendButton.disabled = !enabled;
+    messageInput.disabled = !enabled;
+    messageInput.placeholder = enabled ? 'Type your message here…' : 'Connect to start chatting';
+    if (enabled) chatDisconnectBanner.hidden = true;
+}
+
+// --- Hang up / teardown ---
 hangupButton.addEventListener('click', () => {
     teardownConnection();
+    clearUrlFragment();
     resetModal();
     showToast('Call ended', 'success');
 });
@@ -446,46 +356,34 @@ function teardownConnection() {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
     }
-    if (dataChannel) {
-        dataChannel.close();
-        dataChannel = null;
+    if (chatConnection) {
+        chatConnection.close();
+        chatConnection = null;
     }
-    if (localConnection) {
-        localConnection.close();
-        localConnection = null;
+    if (mediaCall) {
+        mediaCall.close();
+        mediaCall = null;
     }
+    if (peer) {
+        peer.destroy();
+        peer = null;
+    }
+    roomCode = null;
+    idRetryUsed = false;
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
-    remoteStream = null;
-    localIceCandidates = [];
     stagePlaceholder.hidden = false;
     hideFailurePanel();
-    sendButton.disabled = true;
-    messageInput.disabled = true;
-    messageInput.placeholder = 'Connect to start chatting';
+    setChatEnabled(false);
     chatDisconnectBanner.hidden = true;
     setStatus('new', 'Disconnected');
 }
 
-// --- Connection creation ---
-async function createConnection(createOffer) {
-    localIceCandidates = [];
-
-    localConnection = new RTCPeerConnection({ iceServers: loadIceServers() });
-
-    if (createOffer) {
-        dataChannel = localConnection.createDataChannel('chat');
-        setupDataChannel();
-    } else {
-        localConnection.ondatachannel = (event) => {
-            dataChannel = event.channel;
-            setupDataChannel();
-        };
-    }
-
+// --- Media ---
+async function ensureLocalMedia() {
+    if (localStream) return localStream;
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
     } catch (err) {
         console.error('Error accessing media devices.', err);
         if (err.name === 'NotAllowedError') {
@@ -497,29 +395,26 @@ async function createConnection(createOffer) {
         }
         throw err;
     }
+    localVideo.srcObject = localStream;
+    isAudioMuted = false;
+    isVideoMuted = false;
+    muteButton.setAttribute('aria-pressed', 'false');
+    videoButton.setAttribute('aria-pressed', 'false');
+    return localStream;
+}
 
-    localStream.getTracks().forEach((track) => {
-        localConnection.addTrack(track, localStream);
-    });
+// --- Peer wiring ---
+function createPeer(id) {
+    return new Peer(id, { config: { iceServers: loadIceServers() } });
+}
 
-    localConnection.onicecandidate = ({ candidate }) => {
-        if (candidate) {
-            localIceCandidates.push(candidate);
-        }
-    };
-
-    remoteStream = new MediaStream();
-    remoteVideo.srcObject = remoteStream;
-
-    localConnection.ontrack = (event) => {
-        event.streams[0].getTracks().forEach((track) => {
-            remoteStream.addTrack(track);
-        });
-        stagePlaceholder.hidden = true;
-    };
-
-    localConnection.onconnectionstatechange = () => {
-        const state = localConnection.connectionState;
+function watchPeerConnection(call) {
+    const pc = call.peerConnection;
+    if (!pc) return;
+    pc.addEventListener('connectionstatechange', () => {
+        // A call that was replaced or hung up should not drive the UI any more.
+        if (mediaCall !== call) return;
+        const state = pc.connectionState;
         if (state === 'connecting') {
             setStatus('connecting', 'Connecting…');
         } else if (state === 'connected') {
@@ -532,89 +427,217 @@ async function createConnection(createOffer) {
             setStatus('failed', 'Failed');
             showFailurePanel();
         }
-    };
-
-    if (createOffer) {
-        const offer = await localConnection.createOffer();
-        await localConnection.setLocalDescription(offer);
-        await waitForIceGathering();
-
-        localDescriptionTextarea.value = JSON.stringify({
-            sessionDescription: localConnection.localDescription,
-            iceCandidates: localIceCandidates
-        });
-    }
-}
-
-function setupDataChannel() {
-    dataChannel.onopen = () => {
-        sendButton.disabled = false;
-        messageInput.disabled = false;
-        messageInput.placeholder = 'Type your message here…';
-        chatDisconnectBanner.hidden = true;
-    };
-    dataChannel.onmessage = (event) => {
-        appendMessage(event.data, false);
-    };
-    dataChannel.onerror = (error) => {
-        console.error('Data channel error:', error);
-    };
-    dataChannel.onclose = () => {
-        sendButton.disabled = true;
-        messageInput.disabled = true;
-        chatDisconnectBanner.hidden = false;
-    };
-}
-
-// --- ICE gathering with fallbacks ---
-// Primary: 'complete' event. Fallback: 2s of no new candidates. Hard cap: 10s.
-function waitForIceGathering() {
-    return new Promise((resolve, reject) => {
-        if (localConnection.iceGatheringState === 'complete') {
-            if (localIceCandidates.length === 0) {
-                reject(new Error('No connection candidates were gathered'));
-            } else {
-                resolve();
-            }
-            return;
-        }
-
-        let quietTimer = null;
-        let settled = false;
-
-        const finish = () => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(quietTimer);
-            clearTimeout(hardCapTimer);
-            localConnection.removeEventListener('icegatheringstatechange', onStateChange);
-            localConnection.removeEventListener('icecandidate', onCandidate);
-            if (localIceCandidates.length === 0) {
-                reject(new Error('No connection candidates were gathered'));
-            } else {
-                resolve();
-            }
-        };
-
-        const armQuietTimer = () => {
-            clearTimeout(quietTimer);
-            quietTimer = setTimeout(finish, 2000);
-        };
-
-        const onStateChange = () => {
-            if (localConnection.iceGatheringState === 'complete') finish();
-        };
-
-        const onCandidate = ({ candidate }) => {
-            if (candidate) armQuietTimer();
-        };
-
-        const hardCapTimer = setTimeout(finish, 10000);
-
-        localConnection.addEventListener('icegatheringstatechange', onStateChange);
-        localConnection.addEventListener('icecandidate', onCandidate);
     });
 }
 
+function attachMediaCall(call) {
+    mediaCall = call;
+
+    call.on('stream', (remoteStream) => {
+        if (mediaCall !== call) return;
+        remoteVideo.srcObject = remoteStream;
+        stagePlaceholder.hidden = true;
+    });
+
+    call.on('close', () => {
+        if (mediaCall !== call) return;
+        setStatus('disconnected', 'Call ended');
+        stagePlaceholder.hidden = false;
+        remoteVideo.srcObject = null;
+    });
+
+    call.on('error', (err) => {
+        console.error('Media call error', err);
+        if (mediaCall !== call) return;
+        showToast('The call ran into a problem', 'error');
+    });
+
+    watchPeerConnection(call);
+}
+
+function attachChatConnection(conn) {
+    chatConnection = conn;
+
+    conn.on('open', () => {
+        if (chatConnection !== conn) return;
+        setChatEnabled(true);
+    });
+
+    conn.on('data', (data) => {
+        if (chatConnection !== conn) return;
+        appendMessage(typeof data === 'string' ? data : JSON.stringify(data), false);
+    });
+
+    conn.on('close', () => {
+        if (chatConnection !== conn) return;
+        setChatEnabled(false);
+        chatDisconnectBanner.hidden = false;
+    });
+
+    conn.on('error', (err) => {
+        console.error('Chat connection error', err);
+    });
+}
+
+function describePeerError(err) {
+    switch (err.type) {
+        case 'peer-unavailable':
+            return 'Nobody is waiting at that link. Ask them to start the call again and send a fresh link.';
+        case 'network':
+        case 'socket-error':
+        case 'socket-closed':
+        case 'server-error':
+            return 'Lost contact with the signalling server. Check your connection and retry.';
+        case 'browser-incompatible':
+            return 'This browser does not support the WebRTC features this call needs.';
+        case 'invalid-id':
+            return 'That invite code is not valid.';
+        case 'ssl-unavailable':
+            return 'The signalling server could not be reached over a secure connection.';
+        default:
+            return 'Something went wrong setting up the call. Retry to start over.';
+    }
+}
+
+function attachPeerErrorHandlers() {
+    peer.on('error', (err) => {
+        console.error('Peer error', err);
+
+        // The public broker rejects an id that is already registered — very rare
+        // with random codes, but retry once with a fresh one before giving up.
+        if (err.type === 'unavailable-id' && role === 'host' && !idRetryUsed) {
+            idRetryUsed = true;
+            startHosting();
+            return;
+        }
+
+        showToast(describePeerError(err), 'error');
+
+        if (err.type === 'peer-unavailable') {
+            joinButton.disabled = false;
+            joinButton.textContent = 'Join call';
+            roomCodeError.textContent = describePeerError(err);
+            roomCodeError.hidden = false;
+            setStatus('failed', 'Not found');
+            return;
+        }
+
+        setStatus('failed', 'Failed');
+    });
+
+    peer.on('disconnected', () => {
+        // Signalling socket dropped. An established call keeps running, but
+        // reconnect so the room can still be joined.
+        if (peer && !peer.destroyed) peer.reconnect();
+    });
+}
+
+// --- Host ---
+async function startHosting() {
+    hostPreparing.hidden = false;
+    hostWaiting.hidden = true;
+    setStatus('connecting', 'Preparing…');
+
+    try {
+        await ensureLocalMedia();
+    } catch (e) {
+        teardownConnection();
+        resetModal();
+        return;
+    }
+
+    if (peer) {
+        peer.destroy();
+        peer = null;
+    }
+
+    roomCode = createRoomCode();
+    peer = createPeer(ROOM_PREFIX + roomCode);
+    attachPeerErrorHandlers();
+
+    peer.on('open', () => {
+        inviteLinkInput.value = buildInviteLink(roomCode);
+        hostPreparing.hidden = true;
+        hostWaiting.hidden = false;
+        setStatus('connecting', 'Waiting for guest');
+    });
+
+    peer.on('call', async (call) => {
+        try {
+            const stream = await ensureLocalMedia();
+            call.answer(stream);
+            attachMediaCall(call);
+            setStatus('connecting', 'Connecting…');
+        } catch (e) {
+            call.close();
+        }
+    });
+
+    peer.on('connection', (conn) => {
+        attachChatConnection(conn);
+    });
+}
+
+// --- Guest ---
+async function joinRoom(code) {
+    roomCodeError.hidden = true;
+    joinButton.disabled = true;
+    joinButton.innerHTML = '<span class="btn-spinner"></span>Connecting…';
+    setStatus('connecting', 'Connecting…');
+
+    try {
+        await ensureLocalMedia();
+    } catch (e) {
+        joinButton.disabled = false;
+        joinButton.textContent = 'Join call';
+        setStatus('new', 'Disconnected');
+        return;
+    }
+
+    if (peer) {
+        peer.destroy();
+        peer = null;
+    }
+
+    roomCode = code;
+    peer = createPeer(undefined);
+    attachPeerErrorHandlers();
+
+    peer.on('open', () => {
+        const hostId = ROOM_PREFIX + code;
+        attachChatConnection(peer.connect(hostId));
+        attachMediaCall(peer.call(hostId, localStream));
+    });
+}
+
+roomCodeInput.addEventListener('input', () => {
+    roomCodeError.hidden = true;
+    joinButton.disabled = !roomCodeInput.value.trim();
+});
+
+roomCodeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !joinButton.disabled) joinButton.click();
+});
+
+joinButton.addEventListener('click', () => {
+    const code = normalizeRoomCode(roomCodeInput.value);
+    if (!code) {
+        roomCodeError.textContent = "That doesn't look like an invite link — paste the whole link you were sent.";
+        roomCodeError.hidden = false;
+        return;
+    }
+    joinRoom(code);
+});
+
 // --- Init ---
 resetModal();
+
+const invitedCode = normalizeRoomCode(location.hash);
+if (invitedCode) {
+    role = 'guest';
+    roomCodeInput.value = location.hash.slice(1);
+    joinButton.disabled = false;
+    joinHint.textContent = "You've been invited to a call. Join when you're ready — your camera and microphone will be requested.";
+    showStep(stepJoin);
+    joinButton.focus();
+}

@@ -20,3 +20,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 .env*
+
+# Playwright MCP snapshots
+.playwright-mcp/

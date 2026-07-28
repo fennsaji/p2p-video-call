@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WebRTC Video Call</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%236366f1'/><path d='M16 9.5l3.2-1.6a.7.7 0 011 .6v7a.7.7 0 01-1 .6L16 14.5M6.5 17h7a1.8 1.8 0 001.8-1.8V8.8A1.8 1.8 0 0013.5 7h-7a1.8 1.8 0 00-1.8 1.8v6.4A1.8 1.8 0 006.5 17z' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round'/></svg>">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -46,7 +48,7 @@
                 </div>
             </section>
 
-            <aside class="chat-sidebar" id="chatSidebar">
+            <aside class="chat-sidebar" id="chatSidebar" hidden>
                 <div class="chat-header">
                     <span>Chat</span>
                     <button class="icon-btn" id="closeChatButton" aria-label="Close chat">
@@ -126,65 +128,53 @@
             </button>
 
             <h2 id="modalTitle">Set up your call</h2>
-            <div class="step-indicator" id="stepIndicator">Step 1 of 3</div>
+            <div class="step-indicator" id="stepIndicator">Step 1 of 2</div>
 
             <div id="stepRole">
                 <p class="hint">Choose how you'd like to connect.</p>
                 <div class="role-cards">
                     <button class="role-card" id="startCallCard">
                         <h3>Start a call</h3>
-                        <p>Create a connection offer to send to someone else.</p>
+                        <p>Get an invite link to send to someone else.</p>
                     </button>
                     <button class="role-card" id="joinCallCard">
                         <h3>Join a call</h3>
-                        <p>Paste an offer code you received from someone else.</p>
+                        <p>Paste an invite link you received.</p>
                     </button>
                 </div>
             </div>
 
-            <div id="stepStart" hidden>
-                <p class="hint">Send this code to the other person via any messenger.</p>
+            <div id="stepHost" hidden>
+                <p class="hint">Send this link however you like. The call connects as soon as they open it.</p>
                 <div class="field">
-                    <label for="localDescription">Your offer code</label>
-                    <textarea id="localDescription" rows="6" readonly></textarea>
+                    <label for="inviteLink">Invite link</label>
+                    <input type="text" id="inviteLink" readonly placeholder="Preparing your link…" />
                     <div class="copy-row">
-                        <button class="btn" id="copyOfferButton">Copy</button>
-                        <span id="copyOfferStatus"></span>
+                        <button class="btn btn-primary" id="copyInviteButton">Copy link</button>
+                        <span id="copyInviteStatus"></span>
                     </div>
                 </div>
-                <div class="field">
-                    <label for="answerInput">Paste their answer code here</label>
-                    <textarea id="answerInput" rows="6" placeholder="Paste the answer code you received"></textarea>
-                    <div class="field-error" id="answerError" hidden></div>
+                <div class="waiting-row" id="hostPreparing" role="status" aria-live="polite">
+                    <span class="btn-spinner"></span>Setting up your camera and link…
+                </div>
+                <div class="waiting-row" id="hostWaiting" role="status" aria-live="polite" hidden>
+                    <span class="btn-spinner"></span>Waiting for someone to join…
                 </div>
                 <div class="modal-actions">
-                    <button class="btn" id="backFromStartButton">Back</button>
-                    <button class="btn btn-primary" id="connectAsCallerButton" disabled>Connect</button>
+                    <button class="btn" id="backFromHostButton">Back</button>
                 </div>
             </div>
 
             <div id="stepJoin" hidden>
-                <p class="hint">Paste the offer code you received from the caller.</p>
+                <p class="hint" id="joinHint">Paste the invite link you were sent.</p>
                 <div class="field">
-                    <label for="offerInput">Their offer code</label>
-                    <textarea id="offerInput" rows="6" placeholder="Paste the offer code you received"></textarea>
-                    <div class="field-error" id="offerError" hidden></div>
+                    <label for="roomCodeInput">Invite link</label>
+                    <input type="text" id="roomCodeInput" placeholder="https://…/#abc123" />
+                    <div class="field-error" id="roomCodeError" hidden></div>
                 </div>
                 <div class="modal-actions">
                     <button class="btn" id="backFromJoinButton">Back</button>
-                    <button class="btn btn-primary" id="connectAsCalleeButton" disabled>Connect</button>
-                </div>
-            </div>
-
-            <div id="stepAnswer" hidden>
-                <p class="hint">Send this code back to the caller to finish connecting.</p>
-                <div class="field">
-                    <label for="answerOutput">Your answer code</label>
-                    <textarea id="answerOutput" rows="6" readonly></textarea>
-                    <div class="copy-row">
-                        <button class="btn" id="copyAnswerButton">Copy</button>
-                        <span id="copyAnswerStatus"></span>
-                    </div>
+                    <button class="btn btn-primary" id="joinButton" disabled>Join call</button>
                 </div>
             </div>
 
@@ -206,6 +196,7 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
+    <script src="vendor/peerjs.min.js"></script>
     <script src="script.js"></script>
 </body>
 

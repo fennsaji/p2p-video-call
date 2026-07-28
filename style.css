@@ -144,6 +144,10 @@ button {
     padding: var(--space-4);
 }
 
+.stage-placeholder[hidden] {
+    display: none;
+}
+
 .stage-placeholder svg {
     width: 48px;
     height: 48px;
@@ -193,6 +197,10 @@ button {
     padding: var(--space-6);
     background: rgba(15, 17, 23, 0.92);
     z-index: 50;
+}
+
+.failure-panel[hidden] {
+    display: none;
 }
 
 .failure-panel h2 {
@@ -424,6 +432,10 @@ button {
     justify-content: center;
 }
 
+.unread-badge[hidden] {
+    display: none;
+}
+
 .control-btn-wrap {
     position: relative;
 }
@@ -586,6 +598,24 @@ button {
     font-size: 12px;
     color: var(--text-secondary);
     margin: var(--space-1) 0 var(--space-3);
+}
+
+.waiting-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.waiting-row[hidden] {
+    display: none;
+}
+
+.waiting-row .btn-spinner {
+    margin-right: 0;
+    border-color: var(--border);
+    border-top-color: var(--accent);
 }
 
 details.advanced {
