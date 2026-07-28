@@ -1,7 +1,7 @@
 {
-  "name": "web-rtc",
+  "name": "p2p-meet",
   "version": "1.0.0",
-  "description": "",
+  "description": "Peer-to-peer video calls between two browsers, connected by a shared link",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

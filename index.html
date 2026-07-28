@@ -4,7 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WebRTC Video Call</title>
+    <title>P2P Meet</title>
+    <meta name="description"
+        content="Peer-to-peer video calls straight between two browsers. Share a link, and the call connects — no account, no server in the middle.">
+    <meta name="theme-color" content="#0f1117">
+    <link rel="canonical" href="https://p2p.fennsaji.com/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="P2P Meet">
+    <meta property="og:url" content="https://p2p.fennsaji.com/">
+    <meta property="og:title" content="P2P Meet">
+    <meta property="og:description"
+        content="Peer-to-peer video calls straight between two browsers. Share a link, and the call connects — no account, no server in the middle.">
+    <meta name="twitter:card" content="summary">
+
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%236366f1'/><path d='M16 9.5l3.2-1.6a.7.7 0 011 .6v7a.7.7 0 01-1 .6L16 14.5M6.5 17h7a1.8 1.8 0 001.8-1.8V8.8A1.8 1.8 0 0013.5 7h-7a1.8 1.8 0 00-1.8 1.8v6.4A1.8 1.8 0 006.5 17z' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round'/></svg>">
     <link rel="stylesheet" href="style.css">
@@ -13,7 +26,7 @@
 <body>
     <div class="app">
         <header class="app-header">
-            <h1>Peer-to-Peer Video Call</h1>
+            <h1>P2P Meet</h1>
             <div class="status-pill" id="statusPill" data-state="new" role="status" aria-live="polite">
                 <span class="status-dot"></span>
                 <span id="statusText">Disconnected</span>
@@ -169,7 +182,7 @@
                 <p class="hint" id="joinHint">Paste the invite link you were sent.</p>
                 <div class="field">
                     <label for="roomCodeInput">Invite link</label>
-                    <input type="text" id="roomCodeInput" placeholder="https://…/#abc123" />
+                    <input type="text" id="roomCodeInput" placeholder="https://p2p.fennsaji.com/#abc123" />
                     <div class="field-error" id="roomCodeError" hidden></div>
                 </div>
                 <div class="modal-actions">
