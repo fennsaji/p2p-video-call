@@ -1,1 +1,25 @@
 node_modules
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Agent / tooling state
+.codera/
+.claude/
+
+# Vercel
+.vercel
+
+# Logs and env
+*.log
+npm-debug.log*
+.env*
+
+# Playwright MCP snapshots
+.playwright-mcp/
