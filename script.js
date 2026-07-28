@@ -1,5 +1,6 @@
 const DEFAULT_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
-const ICE_SERVERS_STORAGE_KEY = 'webrtc-demo-ice-servers';
+const ICE_SERVERS_STORAGE_KEY = 'p2p-meet-ice-servers';
+const LEGACY_ICE_SERVERS_STORAGE_KEY = 'webrtc-demo-ice-servers';
 
 // Room ids live in a shared namespace on the public PeerJS broker, so they are
 // prefixed and long enough that collisions with other apps are not a concern.
@@ -86,6 +87,16 @@ function showToast(message, type = 'info') {
 }
 
 // --- ICE servers (Advanced settings) ---
+// Carry over servers saved under the pre-rename key so custom TURN
+// credentials survive the rename.
+const legacyIceServers = localStorage.getItem(LEGACY_ICE_SERVERS_STORAGE_KEY);
+if (legacyIceServers) {
+    if (!localStorage.getItem(ICE_SERVERS_STORAGE_KEY)) {
+        localStorage.setItem(ICE_SERVERS_STORAGE_KEY, legacyIceServers);
+    }
+    localStorage.removeItem(LEGACY_ICE_SERVERS_STORAGE_KEY);
+}
+
 function loadIceServers() {
     const raw = localStorage.getItem(ICE_SERVERS_STORAGE_KEY);
     if (!raw) return DEFAULT_ICE_SERVERS;
