@@ -13,8 +13,10 @@ Thumbs.db
 .codera/
 .claude/
 
+# Vercel
+.vercel
+
 # Logs and env
 *.log
 npm-debug.log*
-.env
-.env.local
+.env*
