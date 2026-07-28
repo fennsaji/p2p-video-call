@@ -1,96 +1,211 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WebRTC Video Call</title>
-    <style>
-        video {
-            width: 300px;
-            height: 225px;
-            background-color: black;
-            margin: 5px;
-        }
-
-        #videos {
-            display: flex;
-        }
-
-        #controls {
-            margin-top: 10px;
-        }
-
-        #controls button {
-            margin-right: 5px;
-        }
-
-        /* Added styles for the chat interface */
-        #chat {
-            margin-top: 20px;
-        }
-
-        #messages {
-            list-style: none;
-            padding: 0;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 5px;
-        }
-
-        #messages li {
-            margin-bottom: 5px;
-        }
-
-        #messageInput {
-            width: 80%;
-            padding: 5px;
-            margin-right: 5px;
-        }
-
-        #sendButton {
-            padding: 5px 10px;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>Peer-to-Peer Video Call</h1>
-    <div>
-        <h3>Your Connection Details:</h3>
-        <textarea id="localDescription" cols="60" rows="10" readonly></textarea>
-        <br>
-        <button id="copyLocalDescription">Generate Connection Offer</button>
-    </div>
-    <hr>
-    <div>
-        <h3>Remote Connection Details:</h3>
-        <textarea id="remoteDescription" cols="60" rows="10" placeholder="Paste remote description here"></textarea>
-        <br>
-        <button id="connect">Connect</button>
-    </div>
-    <hr>
-    <div id="videos">
-        <div>
-            <h3>Local Video:</h3>
-            <video id="localVideo" autoplay muted playsinline></video>
-            <div id="controls">
-                <button id="muteButton">Mute Microphone</button>
-                <button id="videoButton">Turn Off Video</button>
+    <div class="app">
+        <header class="app-header">
+            <h1>Peer-to-Peer Video Call</h1>
+            <div class="status-pill" id="statusPill" data-state="new" role="status" aria-live="polite">
+                <span class="status-dot"></span>
+                <span id="statusText">Disconnected</span>
             </div>
-        </div>
-        <div>
-            <h3>Remote Video:</h3>
-            <video id="remoteVideo" autoplay playsinline></video>
+        </header>
+
+        <main class="app-main">
+            <section class="video-stage" id="videoStage">
+                <video id="remoteVideo" autoplay playsinline></video>
+
+                <div class="stage-placeholder" id="stagePlaceholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M15 10l4.55-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.45.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <p>Waiting for the other person to connect</p>
+                </div>
+
+                <div class="failure-panel" id="failurePanel" role="status" aria-live="assertive" hidden>
+                    <h2>Couldn't establish a connection</h2>
+                    <p>This usually means both networks block peer-to-peer traffic (symmetric NAT). A TURN relay
+                        server is required to get through. You can supply your own TURN credentials in Advanced
+                        settings, or ask the other person to try a different network.</p>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="retryButton">Retry</button>
+                        <button class="btn" id="openAdvancedFromFailure">Advanced ICE settings</button>
+                    </div>
+                </div>
+
+                <div class="pip">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <span class="pip-label">You</span>
+                </div>
+            </section>
+
+            <aside class="chat-sidebar" id="chatSidebar">
+                <div class="chat-header">
+                    <span>Chat</span>
+                    <button class="icon-btn" id="closeChatButton" aria-label="Close chat">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <ul class="chat-messages" id="messages">
+                    <li class="chat-empty" id="chatEmpty">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path
+                                d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+                        </svg>
+                        <span>No messages yet — say hi</span>
+                    </li>
+                </ul>
+
+                <div class="chat-disconnect-banner" id="chatDisconnectBanner" role="status" aria-live="polite" hidden>
+                    Connection lost — messages can't be sent
+                </div>
+
+                <div class="chat-input-row">
+                    <input type="text" id="messageInput" placeholder="Connect to start chatting" disabled
+                        aria-label="Message" />
+                    <button class="icon-btn" id="sendButton" disabled aria-label="Send message">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                        </svg>
+                    </button>
+                </div>
+            </aside>
+        </main>
+
+        <div class="control-bar">
+            <button class="control-btn" id="muteButton" aria-label="Mute microphone" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                    <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                    <path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" />
+                </svg>
+            </button>
+
+            <button class="control-btn" id="videoButton" aria-label="Turn off camera" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                    <path d="M23 7l-7 5 7 5V7z" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" />
+                </svg>
+            </button>
+
+            <div class="control-btn-wrap">
+                <button class="control-btn" id="chatToggleButton" aria-label="Toggle chat" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <path
+                            d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+                    </svg>
+                </button>
+                <span class="unread-badge" id="unreadBadge" hidden>0</span>
+            </div>
+
+            <button class="control-btn hangup" id="hangupButton" aria-label="Hang up call">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                    <path
+                        d="M10.68 13.31a16 16 0 003.41 2.6l1-1a2 2 0 012-.45c1.14.37 2.33.57 3.53.57a2 2 0 012 2v3a2 2 0 01-2 2C10.4 22 2 13.6 2 3.5a2 2 0 012-2h3a2 2 0 012 2c0 1.2.2 2.4.57 3.53a2 2 0 01-.45 2z"
+                        transform="rotate(135 12 12)" />
+                </svg>
+            </button>
         </div>
     </div>
-    <hr>
-    <!-- Added chat interface -->
-    <div id="chat">
-        <h3>Chat:</h3>
-        <ul id="messages"></ul>
-        <input type="text" id="messageInput" placeholder="Type your message here..." />
-        <button id="sendButton">Send</button>
+
+    <div class="modal-overlay" id="setupModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal">
+            <button class="icon-btn modal-minimize" id="minimizeModalButton" aria-label="Minimize setup">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+
+            <h2 id="modalTitle">Set up your call</h2>
+            <div class="step-indicator" id="stepIndicator">Step 1 of 3</div>
+
+            <div id="stepRole">
+                <p class="hint">Choose how you'd like to connect.</p>
+                <div class="role-cards">
+                    <button class="role-card" id="startCallCard">
+                        <h3>Start a call</h3>
+                        <p>Create a connection offer to send to someone else.</p>
+                    </button>
+                    <button class="role-card" id="joinCallCard">
+                        <h3>Join a call</h3>
+                        <p>Paste an offer code you received from someone else.</p>
+                    </button>
+                </div>
+            </div>
+
+            <div id="stepStart" hidden>
+                <p class="hint">Send this code to the other person via any messenger.</p>
+                <div class="field">
+                    <label for="localDescription">Your offer code</label>
+                    <textarea id="localDescription" rows="6" readonly></textarea>
+                    <div class="copy-row">
+                        <button class="btn" id="copyOfferButton">Copy</button>
+                        <span id="copyOfferStatus"></span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="answerInput">Paste their answer code here</label>
+                    <textarea id="answerInput" rows="6" placeholder="Paste the answer code you received"></textarea>
+                    <div class="field-error" id="answerError" hidden></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn" id="backFromStartButton">Back</button>
+                    <button class="btn btn-primary" id="connectAsCallerButton" disabled>Connect</button>
+                </div>
+            </div>
+
+            <div id="stepJoin" hidden>
+                <p class="hint">Paste the offer code you received from the caller.</p>
+                <div class="field">
+                    <label for="offerInput">Their offer code</label>
+                    <textarea id="offerInput" rows="6" placeholder="Paste the offer code you received"></textarea>
+                    <div class="field-error" id="offerError" hidden></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn" id="backFromJoinButton">Back</button>
+                    <button class="btn btn-primary" id="connectAsCalleeButton" disabled>Connect</button>
+                </div>
+            </div>
+
+            <div id="stepAnswer" hidden>
+                <p class="hint">Send this code back to the caller to finish connecting.</p>
+                <div class="field">
+                    <label for="answerOutput">Your answer code</label>
+                    <textarea id="answerOutput" rows="6" readonly></textarea>
+                    <div class="copy-row">
+                        <button class="btn" id="copyAnswerButton">Copy</button>
+                        <span id="copyAnswerStatus"></span>
+                    </div>
+                </div>
+            </div>
+
+            <details class="advanced" id="advancedDetails">
+                <summary>Advanced settings</summary>
+                <div class="field">
+                    <label for="iceServersInput">Custom ICE servers (JSON array)</label>
+                    <textarea id="iceServersInput" rows="4"
+                        placeholder='[{"urls":"turn:example.com:3478","username":"user","credential":"pass"}]'></textarea>
+                    <div class="field-error" id="iceServersError" hidden></div>
+                    <div class="copy-row">
+                        <button class="btn" id="saveIceServersButton">Save</button>
+                        <span id="saveIceServersStatus"></span>
+                    </div>
+                </div>
+            </details>
+        </div>
     </div>
+
+    <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
     <script src="script.js"></script>
 </body>
 
